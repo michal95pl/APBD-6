@@ -7,7 +7,7 @@ namespace WebApplication1.Services;
 
 public interface IWarehouseService
 {
-    int RegisterProductInWarehouse(WarehouseDto dto);
+    Task<int> RegisterProductInWarehouseAsync(WarehouseDto dto);
 }
 
 public class WarehouseService : IWarehouseService
@@ -19,31 +19,31 @@ public class WarehouseService : IWarehouseService
         _warehouseRepository = warehouseRepository;
     }
     
-    public int RegisterProductInWarehouse(WarehouseDto dto)
+    public async Task<int> RegisterProductInWarehouseAsync(WarehouseDto dto)
     {
         if (dto.Amount <= 0)
             throw new DataException("Incorrect amount value");
         
-        if (!_warehouseRepository.ExistsProduct(dto.IdProduct!.Value))
+        if (!await _warehouseRepository.ExistsProductAsync(dto.IdProduct!.Value))
             throw new NotFoundException("Product not found");
         
-        if (!_warehouseRepository.ExistsWarehouse(dto.IdWarehouse!.Value))
+        if (!await _warehouseRepository.ExistsWarehouseAsync(dto.IdWarehouse!.Value))
             throw new NotFoundException("Warehouse not found");
         
-        var orderId = _warehouseRepository.GetOrder(dto.IdProduct!.Value, dto.Amount!.Value, dto.CreatedAt!.Value);
+        var orderId = await _warehouseRepository.GetOrderAsync(dto.IdProduct!.Value, dto.Amount!.Value, dto.CreatedAt!.Value);
         
         if (orderId is null)
             throw new NotFoundException("Order not found");
         
-        if (_warehouseRepository.OrderIsRealized(orderId.Value))
+        if (await _warehouseRepository.OrderIsRealizedAsync(orderId.Value))
             throw new ConflictException("Order was realized");
         
-        var productPrice = _warehouseRepository.GetPrice(dto.IdProduct!.Value);
+        var productPrice = await _warehouseRepository.GetPriceAsync(dto.IdProduct!.Value);
         
-        var idProductWarehouse = _warehouseRepository.RegisterProduct(
+        var idProductWarehouse = await _warehouseRepository.RegisterProductAsync(
             idWarehouse: dto.IdWarehouse!.Value,
             idProduct: dto.IdProduct!.Value,
-            idOrder: orderId!.Value,
+            idOrder: orderId.Value,
             productPrice: productPrice,
             productAmount: dto.Amount!.Value,
             createdAt: DateTime.UtcNow);
@@ -53,7 +53,7 @@ public class WarehouseService : IWarehouseService
         
         return idProductWarehouse.Value;
         
-        // var id = _warehouseRepository.RegisterProductByProcedure(dto.IdWarehouse!.Value, dto.IdProduct!.Value, dto.CreatedAt!.Value, dto.Amount!.Value);
+        // var id = await _warehouseRepository.RegisterProductByProcedure(dto.IdWarehouse!.Value, dto.IdProduct!.Value, dto.CreatedAt!.Value, dto.Amount!.Value);
         //
         // if (id is null)
         //     throw new ConflictException("Failed to register product in warehouse");

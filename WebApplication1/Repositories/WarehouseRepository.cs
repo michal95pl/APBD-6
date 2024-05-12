@@ -6,14 +6,15 @@ namespace WebApplication1.Repositories;
 
 public interface IWarehouseRepository
 {
-    bool ExistsProduct(int idProduct);
-    bool ExistsWarehouse(int idWarehouse);
-    int? GetOrder(int idProduct, int amount, DateTime time);
-    bool OrderIsRealized(int idOrder);
+    Task<bool> ExistsProductAsync(int idProduct);
+    Task<bool> ExistsWarehouseAsync(int idWarehouse);
+    Task<int?> GetOrderAsync(int idProduct, int amount, DateTime time);
+    Task<bool> OrderIsRealizedAsync(int idOrder);
 
-    int? RegisterProduct(int idProduct, int idWarehouse, int idOrder, int productAmount, double productPrice, DateTime createdAt);
-    public double GetPrice(int idProduct);
-    int? RegisterProductByProcedure(int idWarehouse, int idProduct, DateTime createdAt, int amount);
+    Task<int?> RegisterProductAsync(int idProduct, int idWarehouse, int idOrder, int productAmount, double productPrice,
+        DateTime createdAt);
+    Task<double> GetPriceAsync(int idProduct);
+    Task<int?> RegisterProductByProcedureAsync(int idWarehouse, int idProduct, DateTime createdAt, int amount);
 }
 
 public class WarehouseRepository : IWarehouseRepository
@@ -26,81 +27,83 @@ public class WarehouseRepository : IWarehouseRepository
         _configuration = configuration;
     }
 
-    public bool ExistsProduct(int idProduct)
+    public async Task<bool> ExistsProductAsync(int idProduct)
     {
-        using var connection = new SqlConnection(_configuration["ConnectionStrings:DefaultConnection"]);
-        connection.Open();
+        await using var connection = new SqlConnection(_configuration["ConnectionStrings:DefaultConnection"]);
+        await connection.OpenAsync();
 
-        using var command = new SqlCommand("Select 1 FROM Product WHERE IdProduct = @id", connection);
+        await using var command = new SqlCommand("Select 1 FROM Product WHERE IdProduct = @id", connection);
         command.Parameters.AddWithValue("@id", idProduct);
-        
-        return  command.ExecuteScalar() != null;
+
+        var ex = await command.ExecuteScalarAsync();
+       
+        return ex != null;
     }
 
-    public bool ExistsWarehouse(int idWarehouse)
+    public async Task<bool> ExistsWarehouseAsync(int idWarehouse)
     {
-        using var connection = new SqlConnection(_configuration["ConnectionStrings:DefaultConnection"]);
-        connection.Open();
+        await using var connection = new SqlConnection(_configuration["ConnectionStrings:DefaultConnection"]);
+        await connection.OpenAsync();
 
-        using var command = new SqlCommand("Select 1 FROM Warehouse WHERE IdWarehouse = @id", connection);
+        await using var command = new SqlCommand("Select 1 FROM Warehouse WHERE IdWarehouse = @id", connection);
         command.Parameters.AddWithValue("@id", idWarehouse);
         
-        return  command.ExecuteScalar() != null;
+        return await command.ExecuteScalarAsync() != null;
     }
 
-    public int? GetOrder(int idProduct, int amount, DateTime dateTime)
+    public async Task<int?> GetOrderAsync(int idProduct, int amount, DateTime dateTime)
     {
-        using var connection = new SqlConnection(_configuration["ConnectionStrings:DefaultConnection"]);
-        connection.Open();
+        await using var connection = new SqlConnection(_configuration["ConnectionStrings:DefaultConnection"]);
+        await connection.OpenAsync();
 
-        using var command = new SqlCommand("SELECT IdOrder FROM [Order] WHERE IdProduct = @id AND Amount = @amount AND CreatedAt < @date", connection);
+        await using var command = new SqlCommand("SELECT IdOrder FROM [Order] WHERE IdProduct = @id AND Amount = @amount AND CreatedAt < @date", connection);
         command.Parameters.AddWithValue("@id", idProduct);
         command.Parameters.AddWithValue("@amount", amount);
         command.Parameters.AddWithValue("@date", dateTime);
 
-        int? id = (int?)command.ExecuteScalar();
+        int? id = (int?) await command.ExecuteScalarAsync();
         
         return id;
     }
 
-    public double GetPrice(int idProduct)
+    public async Task<double> GetPriceAsync(int idProduct)
     {
-        using var connection = new SqlConnection(_configuration["ConnectionStrings:DefaultConnection"]);
+        await using var connection = new SqlConnection(_configuration["ConnectionStrings:DefaultConnection"]);
         connection.Open();
         
-        using var command = new SqlCommand("SELECT Price FROM Product WHERE IdProduct = @id", connection);
+        await using var command = new SqlCommand("SELECT Price FROM Product WHERE IdProduct = @id", connection);
         command.Parameters.AddWithValue("@id", idProduct);
         
-        return Double.Parse(command.ExecuteScalar().ToString());
+        return Double.Parse((await command.ExecuteScalarAsync()).ToString());
     }
     
-    public bool OrderIsRealized(int idOrder)
+    public async Task<bool> OrderIsRealizedAsync(int idOrder)
     {
-        using var connection = new SqlConnection(_configuration["ConnectionStrings:DefaultConnection"]);
-        connection.Open();
+        await using var connection = new SqlConnection(_configuration["ConnectionStrings:DefaultConnection"]);
+        await connection.OpenAsync();
 
-        using var command = new SqlCommand("SELECT * FROM Product_Warehouse where IdOrder = @id", connection);
+        await using var command = new SqlCommand("SELECT * FROM Product_Warehouse where IdOrder = @id", connection);
         command.Parameters.AddWithValue("@id", idOrder);
         
-        return  command.ExecuteScalar() != null;
+        return await command.ExecuteScalarAsync() != null;
     }
     
     
     
-    public int? RegisterProduct(int idProduct, int idWarehouse, int idOrder, int productAmount, double productPrice,  DateTime createdAt)
+    public async Task<int?> RegisterProductAsync(int idProduct, int idWarehouse, int idOrder, int productAmount, double productPrice,  DateTime createdAt)
     {
-        using var connection = new SqlConnection(_configuration["ConnectionStrings:DefaultConnection"]);
-        connection.Open();
+        await using var connection = new SqlConnection(_configuration["ConnectionStrings:DefaultConnection"]);
+        await connection.OpenAsync();
     
-        using var transaction = connection.BeginTransaction();
+        await using var transaction = await connection.BeginTransactionAsync();
 
         try
         {
-           using var command = new SqlCommand("UPDATE [Order] SET FulfilledAt = @date WHERE IdOrder = @idOrder", connection); 
-           command.Transaction = transaction;
+           await using var command = new SqlCommand("UPDATE [Order] SET FulfilledAt = @date WHERE IdOrder = @idOrder", connection); 
+           command.Transaction = (SqlTransaction) transaction;
            command.Parameters.AddWithValue("@date", DateTime.UtcNow);
            command.Parameters.AddWithValue("@idOrder", idOrder);
-           command.ExecuteNonQuery();
+           await command.ExecuteNonQueryAsync();
            
            
            command.CommandText = @"
@@ -115,31 +118,32 @@ public class WarehouseRepository : IWarehouseRepository
            command.Parameters.AddWithValue("@Price", productPrice * productAmount);
            command.Parameters.AddWithValue("@Amount", productAmount);
            
-           var idProductWarehouse = (int)command.ExecuteScalar();
+           var idProductWarehouse = (int) await command.ExecuteScalarAsync();
            
-           transaction.Commit();
+           await transaction.CommitAsync();
            return idProductWarehouse;
         }
         catch
         {
-            transaction.Rollback();
+            await transaction.RollbackAsync();
             return null;
         }
     }
     
-    public int? RegisterProductByProcedure(int idWarehouse, int idProduct, DateTime createdAt, int amount)
+    public async Task<int?> RegisterProductByProcedureAsync(int idWarehouse, int idProduct, DateTime createdAt, int amount)
     {
         try
         { 
-            using var connection = new SqlConnection(_configuration["ConnectionStrings:DefaultConnection"]);
-            connection.Open();
-            using var command = new SqlCommand("AddProductToWarehouse", connection);
+            await using var connection = new SqlConnection(_configuration["ConnectionStrings:DefaultConnection"]);
+            await connection.OpenAsync();
+            await using var command = new SqlCommand("AddProductToWarehouse", connection);
             command.CommandType = CommandType.StoredProcedure;
             command.Parameters.AddWithValue("IdProduct", idProduct);
             command.Parameters.AddWithValue("IdWarehouse",idWarehouse);
             command.Parameters.AddWithValue("Amount", amount);
             command.Parameters.AddWithValue("CreatedAt", createdAt);
-            return (int)command.ExecuteScalar();  
+            var id = await command.ExecuteScalarAsync();
+            return (int)id;
         } catch (Exception e)
         {
             return null;

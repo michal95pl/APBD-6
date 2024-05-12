@@ -20,11 +20,11 @@ public class WarehouseController : ControllerBase
     
     
     [HttpPost]
-    public IActionResult RegisterProductInWarehouse([FromBody] WarehouseDto dto)
+    public async Task<IActionResult> RegisterProductInWarehouse([FromBody] WarehouseDto dto)
     {
         try
         {
-            var id = _warehouseService.RegisterProductInWarehouse(dto);
+            var id = await _warehouseService.RegisterProductInWarehouseAsync(dto);
             return Ok(id);
         }
         catch (NotFoundException e)
